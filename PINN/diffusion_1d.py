@@ -65,7 +65,7 @@ t_ic = torch.zeros(N_ic, 1, device=device)
 u_ic = torch.sin(np.pi * x_ic).to(device)
 
 # Initialize PINN model and move to MPS
-layers = [2, 20, 20, 20, 1]
+layers = [2, 50, 50, 50, 1]
 model = PINN(layers).to(device)
 
 # Optimizer
@@ -73,10 +73,15 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 # Training loop
 epochs = 2000
+batch_size = 512  # Adjust as needed
 for epoch in range(epochs):
     optimizer.zero_grad()
     
-    loss_pde = pde_loss(model, x_f, t_f)
+    # Sample a batch of collocation points
+    idx = torch.randint(0, N_f, (batch_size,))
+    x_f_batch, t_f_batch = x_f[idx], t_f[idx]
+    
+    loss_pde = pde_loss(model, x_f_batch, t_f_batch)
     loss_bc = boundary_loss(model, x_bc, t_bc)
     loss_ic = initial_loss(model, x_ic, t_ic, u_ic)
     
