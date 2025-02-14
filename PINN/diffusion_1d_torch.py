@@ -8,6 +8,7 @@ import matplotlib.animation as animation
 # Check for MPS device
 device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 print(f"Using device: {device}")
+jit_model = True
 
 # Define the Neural Network
 class PINN(nn.Module):
@@ -67,6 +68,8 @@ u_ic = torch.sin(np.pi * x_ic).to(device)
 # Initialize PINN model and move to MPS
 layers = [2, 50, 50, 50, 1]
 model = PINN(layers).to(device)
+if jit_model == True:
+    model = torch.jit.script(model)  # JIT-compile only the forward pass
 
 # Optimizer
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
@@ -74,6 +77,7 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 # Training loop
 epochs = 2000
 batch_size = 512  # Adjust as needed
+loss_history = []
 for epoch in range(epochs):
     optimizer.zero_grad()
     
@@ -86,11 +90,23 @@ for epoch in range(epochs):
     loss_ic = initial_loss(model, x_ic, t_ic, u_ic)
     
     loss = loss_pde + loss_bc + loss_ic
+    loss_history.append(loss.item())
     loss.backward()
     optimizer.step()
     
     if epoch % 500 == 0:
         print(f"Epoch {epoch}, Loss: {loss.item()}")
+
+# Plot loss history
+plt.figure(figsize=(8, 5))
+plt.plot(loss_history, label="Training Loss")
+plt.xlabel("Epochs")
+plt.ylabel("Loss")
+plt.yscale("log")
+plt.title("PINN Training Loss Over Time")
+plt.legend()
+plt.savefig("./results/pinn_diffusion_1d_torch_loss.pdf")
+plt.show()
 
 # Generate animation of u(x,t) evolving over time
 x_test = torch.linspace(0, 1, 100, device=device).reshape(-1, 1)
@@ -115,6 +131,6 @@ def update(frame):
 ani = animation.FuncAnimation(fig, update, frames=len(time_steps), interval=100)
 
 # Save animation as a video file
-ani.save("./results/pinn_diffusion_1d.gif", writer="ffmpeg", fps=10)
+ani.save("./results/pinn_diffusion_1d_torch.gif", writer="ffmpeg", fps=10)
 
 plt.show()
